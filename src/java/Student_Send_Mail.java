@@ -33,8 +33,7 @@ public class Student_Send_Mail extends HttpServlet {
 
         try {
             // Connect to database
-            Class.forName("com.mysql.jdbc.Driver");
-            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/student_learning", "root", "admin");
+            conn = new Connection.DbConnection().getConnection();
 
             // Fetch teacher details
             String sql = "SELECT student_name, student_mail FROM student_register WHERE student_id = ? and Admin_Approve='APPROVED'";

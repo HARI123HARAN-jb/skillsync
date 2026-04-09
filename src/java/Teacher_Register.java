@@ -179,8 +179,7 @@ fis11 = new FileInputStream(image1);
         
        
 
-     Class.forName("com.mysql.jdbc.Driver");
-     con7 = DriverManager.getConnection("jdbc:mysql://localhost:3306/student_learning","root","admin");
+     Connection con7 = new Connection.DbConnection().getConnection();
   
      
 String query="Select * from teacher_register where teacher_mail='"+Mail_ID+"'";

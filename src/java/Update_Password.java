@@ -36,8 +36,7 @@ public class Update_Password extends HttpServlet {
         }
 
         try {
-            Class.forName("com.mysql.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/student_learning", "root", "admin");
+            Connection conn = new Connection.DbConnection().getConnection();
 
             String query = "UPDATE student_register SET password=? WHERE student_mail=?";
             PreparedStatement ps = conn.prepareStatement(query);

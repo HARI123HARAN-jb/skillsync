@@ -46,8 +46,7 @@ public class Student_Register extends HttpServlet {
             }
 
             // 🔹 Database connection
-          Class.forName("com.mysql.jdbc.Driver");
-   Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/student_learning","root","admin");
+            Connection con = new Connection.DbConnection().getConnection();
 
             // 🔹 Check duplicate email
             PreparedStatement check = con.prepareStatement(

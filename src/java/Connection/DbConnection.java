@@ -17,6 +17,13 @@ public class DbConnection {
             String url = System.getenv("DB_URL");
             String username = System.getenv("DB_USER");
             String password = System.getenv("DB_PASS");
+
+            if (url != null && !url.contains("?")) {
+                url += "?useSSL=true&requireSSL=true&verifyServerCertificate=false";
+            } else if (url != null && !url.contains("useSSL")) {
+                url += "&useSSL=true&requireSSL=true&verifyServerCertificate=false";
+            }
+            
             connection = DriverManager.getConnection(url, username, password);
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
