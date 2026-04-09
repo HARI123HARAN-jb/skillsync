@@ -1,26 +1,25 @@
-# Build Stage — JDK8 with Ant to compile the project
+# Build Stage
 FROM eclipse-temurin:8-jdk AS build
-
-# Install Ant
-RUN apt-get update && apt-get install -y ant && rm -rf /var/lib/apt/lists/*
-
-# Download a minimal Tomcat so Ant has a j2ee server home with servlet-api.jar
-RUN mkdir -p /tomcat/lib && \
-    curl -L "https://repo1.maven.org/maven2/javax/servlet/javax.servlet-api/3.1.0/javax.servlet-api-3.1.0.jar" \
-    -o /tomcat/lib/javax.servlet-api-3.1.0.jar
 
 WORKDIR /app
 COPY . .
 
-# Build the WAR
-RUN ant -Dj2ee.server.home=/tomcat \
-    -Dlibs.CopyLibs.classpath=/app/lib/org-netbeans-modules-java-j2seproject-copylibstask.jar \
-    default
+# Compile all Java sources using lib/* (includes servlet-api jar we added)
+RUN mkdir -p build/classes && \
+    find src/java -name "*.java" > sources.txt && \
+    javac -cp "lib/*" -d build/classes @sources.txt
 
-# Runtime Stage — lightweight Tomcat to serve the WAR
+# Assemble WAR structure manually
+RUN mkdir -p dist/war/WEB-INF/classes dist/war/WEB-INF/lib && \
+    cp -r web/. dist/war/ && \
+    cp -r build/classes/. dist/war/WEB-INF/classes/ && \
+    cp lib/*.jar dist/war/WEB-INF/lib/ && \
+    cd dist/war && jar -cf ../ROOT.war .
+
+# Runtime Stage
 FROM tomcat:9.0-jre8-alpine
 RUN rm -rf /usr/local/tomcat/webapps/ROOT
-COPY --from=build /app/dist/*.war /usr/local/tomcat/webapps/ROOT.war
+COPY --from=build /app/dist/ROOT.war /usr/local/tomcat/webapps/ROOT.war
 
 EXPOSE 8080
 CMD ["catalina.sh", "run"]
