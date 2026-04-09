@@ -1,7 +1,13 @@
-import Database.DbConnection;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.push;
+import org.bson.Document;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -15,21 +21,31 @@ public class Teacher_Add_Quiz extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String course_id = request.getParameter("course_id");
+        String course_id_str = request.getParameter("course_id");
         String teacher_id = request.getParameter("teacher_id");
         String quiz_type = request.getParameter("quiz_type");
 
-        if (course_id == null || course_id.isEmpty()) {
+        if (course_id_str == null || course_id_str.isEmpty()) {
             response.getWriter().println("ERROR: course_id missing");
             return;
         }
-if (quiz_type == null || quiz_type.isEmpty()) {
-    quiz_type = "NORMAL";
-}
+        
+        int course_id = Integer.parseInt(course_id_str);
+        
+        if (quiz_type == null || quiz_type.isEmpty()) {
+            quiz_type = "NORMAL";
+        }
 
         try {
-            DbConnection db = new DbConnection();
-            Connection conn = db.getConnection();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                response.getWriter().println("ERROR: Database Connection Failed!");
+                return;
+            }
+
+            MongoCollection<Document> collection = database.getCollection("courses");
+            List<Document> quizList = new ArrayList<>();
 
             for (int i = 1; i <= 5; i++) {
                 String q = request.getParameter("question" + i);
@@ -43,25 +59,28 @@ if (quiz_type == null || quiz_type.isEmpty()) {
                     continue; // skip empty
                 }
 
-                String insertSQL = "INSERT INTO topic_quiz \n" +
-"(question, option_a, option_b, option_c, option_d, correct_answer, course_id, teacher_id, status)\n" +
-"VALUES (?,?,?,?,?,?,?,?,?)";
+                int quizId = 7000 + new Random().nextInt(2000);
 
-                PreparedStatement ps = conn.prepareStatement(insertSQL);
-                ps.setString(1, q.trim());
-                ps.setString(2, a.trim());
-                ps.setString(3, b.trim());
-                ps.setString(4, c.trim());
-                ps.setString(5, d.trim());
-                ps.setString(6, ans.trim());
-                ps.setString(7, course_id);
-                ps.setString(8, teacher_id);
-                ps.setString(9, quiz_type);
-                ps.executeUpdate();
-                ps.close();
+                Document quizItem = new Document("quiz_id", quizId)
+                        .append("question", q.trim())
+                        .append("option_a", a.trim())
+                        .append("option_b", b.trim())
+                        .append("option_c", c.trim())
+                        .append("option_d", d.trim())
+                        .append("correct_answer", ans.trim())
+                        .append("teacher_id", teacher_id)
+                        .append("status", quiz_type);
+                
+                quizList.add(quizItem);
             }
 
-            conn.close();
+            if (!quizList.isEmpty()) {
+                // 🔹 Nesting: Add the list of quizzes to the 'quizzes' array of the course
+                for(Document quiz : quizList) {
+                    collection.updateOne(eq("course_id", course_id), push("quizzes", quiz));
+                }
+            }
+
             response.sendRedirect("select_course_quiz.jsp?msg=Quiz Added Successfully");
 
         } catch (Exception e) {

@@ -1,65 +1,88 @@
-import Database.DbConnection;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import org.bson.Document;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.*;
-import java.sql.*;
 
 @WebServlet("/Update_Status")
 public class Update_Status extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String moduleId = request.getParameter("module_id");
+        String moduleIdStr = request.getParameter("module_id");
         String action = request.getParameter("status"); // "video_completed" or "notes_completed"
-        String topicId = request.getParameter("topic_id");
-        Integer studentId = (Integer) request.getSession().getAttribute("student_id");
+        String topicIdStr = request.getParameter("topic_id");
+        String courseIdStr = request.getParameter("course_id");
+        HttpSession session = request.getSession();
+        Integer studentId = (Integer) session.getAttribute("student_id");
+
+        if (studentId == null || courseIdStr == null || moduleIdStr == null) {
+            response.getWriter().println("ERROR: Unauthorized or missing params");
+            return;
+        }
 
         try {
-            DbConnection db = new DbConnection();
-            Connection conn = db.getConnection();
+            int courseId = Integer.parseInt(courseIdStr);
+            int moduleId = Integer.parseInt(moduleIdStr);
 
-            // Update the respective column
-            if ("video_completed".equals(action)) {
-                PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE student_modules SET video_status='completed' WHERE student_id=? AND modules_id=? AND topic_id=?");
-                ps.setInt(1, studentId);
-                ps.setString(2, moduleId);
-                ps.setString(3, topicId);
-                ps.executeUpdate();
-                ps.close();
-            } else if ("notes_completed".equals(action)) {
-                PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE student_modules SET notes_status='completed' WHERE student_id=? AND modules_id=? AND topic_id=?");
-                ps.setInt(1, studentId);
-                ps.setString(2, moduleId);
-                ps.setString(3, topicId);
-                ps.executeUpdate();
-                ps.close();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                response.getWriter().println("ERROR: DB Connection failed");
+                return;
             }
 
-            // Check if both video + notes are completed
-            PreparedStatement psCheck = conn.prepareStatement(
-                "SELECT video_status, notes_status FROM student_modules WHERE student_id=? AND modules_id=? AND topic_id=?");
-            psCheck.setInt(1, studentId);
-            psCheck.setString(2, moduleId);
-            psCheck.setString(3, topicId);
-            ResultSet rs = psCheck.executeQuery();
+            MongoCollection<Document> enrollments = database.getCollection("enrollments");
 
-            if (rs.next()) {
-                String videoStatus = rs.getString("video_status");
-                String notesStatus = rs.getString("notes_status");
+            // 🔹 Fetch existing enrollment
+            Document enrollment = enrollments.find(and(eq("student_id", studentId), eq("course_id", courseId))).first();
 
-                if ("completed".equals(videoStatus) && "completed".equals(notesStatus)) {
-                    // Now both are done → unlock quiz
-                    PreparedStatement psReady = conn.prepareStatement(
-                        "UPDATE student_modules SET status='ready_for_quiz' WHERE student_id=? AND modules_id=? AND topic_id=?");
-                    psReady.setInt(1, studentId);
-                    psReady.setString(2, moduleId);
-                    psReady.setString(3, topicId);
-                    psReady.executeUpdate();
-                    psReady.close();
+            if (enrollment == null) {
+                response.getWriter().println("ERROR: No enrollment found");
+                return;
+            }
+
+            // 🔹 Get or initialize the nested module progress array
+            List<Document> progressList = enrollment.getList("modules_progress", Document.class);
+            if (progressList == null) progressList = new ArrayList<>();
+
+            Document moduleProg = null;
+            for (Document p : progressList) {
+                if (p.getInteger("module_id") == moduleId) {
+                    moduleProg = p;
+                    break;
                 }
             }
-            rs.close();
-            psCheck.close();
+
+            if (moduleProg == null) {
+                moduleProg = new Document("module_id", moduleId)
+                        .append("video_status", "pending")
+                        .append("notes_status", "pending")
+                        .append("status", "pending");
+                progressList.add(moduleProg);
+            }
+
+            // 🔹 Update status based on action
+            if ("video_completed".equals(action)) {
+                moduleProg.put("video_status", "completed");
+            } else if ("notes_completed".equals(action)) {
+                moduleProg.put("notes_status", "completed");
+            }
+
+            // 🔹 Check if ready for quiz
+            if ("completed".equals(moduleProg.getString("video_status")) && 
+                "completed".equals(moduleProg.getString("notes_status"))) {
+                moduleProg.put("status", "ready_for_quiz");
+            }
+
+            // 🔹 Push the updated progress back to MongoDB
+            // In a real app, we'd use positional operators, but here we replace the list for simplicity in a fresh migration
+            enrollments.updateOne(and(eq("student_id", studentId), eq("course_id", courseId)), 
+                    new Document("$set", new Document("modules_progress", progressList)));
 
             response.getWriter().println("OK");
 

@@ -1,23 +1,22 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
-
-import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import org.bson.Document;
+import org.bson.types.Binary;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Random;
 
 @WebServlet(urlPatterns = {"/Student_Register"})
-@MultipartConfig(maxFileSize = 50 * 1024 * 1024) // 5MB
+@MultipartConfig(maxFileSize = 50 * 1024 * 1024) 
 public class Student_Register extends HttpServlet {
-@Override
+
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -39,68 +38,59 @@ public class Student_Register extends HttpServlet {
 
             // 🔹 Get uploaded image
             Part imagePart = request.getPart("image");
-            InputStream imageStream = null;
+            byte[] imageData = null;
 
-            if (imagePart != null) {
-                imageStream = imagePart.getInputStream();
+            if (imagePart != null && imagePart.getSize() > 0) {
+                try (InputStream is = imagePart.getInputStream()) {
+                    imageData = new byte[(int) imagePart.getSize()];
+                    is.read(imageData);
+                }
             }
 
-            // 🔹 Database connection
-            Connection con = new Database.DbConnection().getConnection();
-            
-            if (con == null) {
-                session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed! Please check your MongoDB configuration.");
                 response.sendRedirect("index.jsp");
                 return;
             }
 
+            MongoCollection<Document> collection = database.getCollection("students");
+
             // 🔹 Check duplicate email
-            PreparedStatement check = con.prepareStatement(
-                    "SELECT * FROM student_register WHERE student_mail=?");
-            check.setString(1, mail_id);
-            ResultSet rs = check.executeQuery();
+            Document existing = collection.find(eq("student_mail", mail_id)).first();
 
-            if (rs.next()) {
-
+            if (existing != null) {
                 session.setAttribute("msg", "Email already exists!");
                 response.sendRedirect("index.jsp");
                 return;
             }
 
+            // 🔹 Generate a simple integer ID for compatibility
+            int studentId = 1000 + new Random().nextInt(9000);
+
+            // 🔹 Create student document
+            Document student = new Document("student_id", studentId)
+                    .append("student_name", student_name)
+                    .append("student_mail", mail_id)
+                    .append("college_name", college_name)
+                    .append("department", department)
+                    .append("degree", degree)
+                    .append("register_id", register_id)
+                    .append("address", address)
+                    .append("gender", gender)
+                    .append("age", age)
+                    .append("password", password)
+                    .append("mobile", ph_no)
+                    .append("Admin_Approve", "NOT APPROVED");
+
+            if (imageData != null) {
+                student.append("image", new Binary(imageData));
+            }
+
             // 🔹 Insert student
-            PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO student_register (student_id,student_name,student_mail,college_name,department,degree,register_id,address,gender,age,password,mobile,image,Admin_Approve) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'NOT APPROVED')");
-
-            ps.setInt(1, 0);
-            ps.setString(2, student_name);
-            ps.setString(3, mail_id);
-            ps.setString(4, college_name);
-            ps.setString(5, department);
-            ps.setString(6, degree);
-            ps.setString(7, register_id);
-            ps.setString(8, address);
-            ps.setString(9, gender);
-            ps.setString(10, age);
-            ps.setString(11, password);
-            ps.setString(12,ph_no);
-            if (imageStream != null) {
-                ps.setBlob(13, imageStream);
-            } else {
-                ps.setNull(13, java.sql.Types.BLOB);
-            }
-
-            ps.executeUpdate();
-
-            // 🔹 Get generated student id
-            PreparedStatement getId = con.prepareStatement(
-                    "SELECT student_id FROM student_register WHERE student_mail=?");
-            getId.setString(1, mail_id);
-            ResultSet r = getId.executeQuery();
-
-            int studentId = 0;
-            if (r.next()) {
-                studentId = r.getInt("student_id");
-            }
+            collection.insertOne(student);
 
             // 🔹 Success message
             session.setAttribute("msg", "Successfully Register");
@@ -112,6 +102,8 @@ public class Student_Register extends HttpServlet {
 
         } catch (Exception e) {
             e.printStackTrace();
+            session.setAttribute("msg", "Error: " + e.getMessage());
+            response.sendRedirect("index.jsp");
         }
     }
 }

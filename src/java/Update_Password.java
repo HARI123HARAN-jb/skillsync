@@ -1,15 +1,10 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-/**
- *
- * @author user
- */
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.set;
+import org.bson.Document;
 import java.io.IOException;
-import java.sql.*;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -36,23 +31,27 @@ public class Update_Password extends HttpServlet {
         }
 
         try {
-            Connection conn = new Database.DbConnection().getConnection();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed!");
+                response.sendRedirect("New_Password.jsp");
+                return;
+            }
 
-            String query = "UPDATE student_register SET password=? WHERE student_mail=?";
-            PreparedStatement ps = conn.prepareStatement(query);
-            ps.setString(1, newPassword);
-            ps.setString(2, email);
-            int result = ps.executeUpdate();
+            MongoCollection<Document> collection = database.getCollection("students");
 
-            if (result > 0) {
+            // 🔹 Update student password
+            long updatedCount = collection.updateOne(eq("student_mail", email), set("password", newPassword)).getModifiedCount();
+
+            if (updatedCount > 0) {
                 session.setAttribute("msg", "Password updated successfully!");
                 response.sendRedirect("index.jsp");
             } else {
-                session.setAttribute("msg", "Failed to update password.");
+                session.setAttribute("msg", "Failed to update password. Student record not found.");
                 response.sendRedirect("New_Password.jsp");
             }
 
-            conn.close();
         } catch (Exception e) {
             e.printStackTrace();
             session.setAttribute("msg", "Error: " + e.getMessage());
@@ -60,4 +59,3 @@ public class Update_Password extends HttpServlet {
         }
     }
 }
-

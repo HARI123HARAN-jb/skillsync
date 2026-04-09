@@ -1,73 +1,107 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package student_profile;
 
-/**
- *
- * @author user
- */
-import javax.servlet.http.HttpServlet;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.combine;
+import static com.mongodb.client.model.Updates.set;
+import org.bson.Document;
+import org.bson.types.Binary;
+import java.io.IOException;
+import java.io.InputStream;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.*;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import Database.DbConnection;
 
 @WebServlet("/UpdateStudentProfile")
+@MultipartConfig(maxFileSize = 10 * 1024 * 1024)
 public class UpdateStudentProfile extends HttpServlet {
 
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        int id = Integer.parseInt(request.getParameter("student_id"));
-        String name = request.getParameter("student_name");
-        String mail = request.getParameter("student_mail");
-        String college = request.getParameter("college_name");
-        String dept = request.getParameter("department");
-        String degree = request.getParameter("degree");
-        String address = request.getParameter("address");
+        HttpSession session = request.getSession();
+        Integer studentId = (Integer) session.getAttribute("student_id");
 
-        Connection con = null;
-        PreparedStatement ps = null;
+        if (studentId == null) {
+            response.sendRedirect("index.jsp");
+            return;
+        }
 
         try {
-            DbConnection db = new DbConnection();
-            con = db.getConnection();
+            String name = request.getParameter("student_name");
+            String email = request.getParameter("mail_id");
+            String college = request.getParameter("college_name");
+            String dept = request.getParameter("department");
+            String degree = request.getParameter("degree");
+            String address = request.getParameter("address");
+            String gender = request.getParameter("gender");
+            String age = request.getParameter("age");
+            String mobile = request.getParameter("ph_no");
 
-            ps = con.prepareStatement(
-                "UPDATE student_register SET student_name=?, student_mail=?, college_name=?, department=?, degree=?, address=? WHERE student_id=?"
-            );
+            final Part imagePart = request.getPart("image");
+            byte[] imageData = null;
 
-            ps.setString(1, name);
-            ps.setString(2, mail);
-            ps.setString(3, college);
-            ps.setString(4, dept);
-            ps.setString(5, degree);
-            ps.setString(6, address);
-            ps.setInt(7, id);
-
-            int rows = ps.executeUpdate();
-
-            if (rows > 0) {
-                response.sendRedirect("Student_Profile.jsp?updated=success");
-            } else {
-                response.sendRedirect("Student_Profile.jsp?updated=failed");
+            if (imagePart != null && imagePart.getSize() > 0) {
+                try (InputStream is = imagePart.getInputStream()) {
+                    imageData = new byte[(int) imagePart.getSize()];
+                    is.read(imageData);
+                }
             }
+
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed!");
+                response.sendRedirect("Student_Profile.jsp");
+                return;
+            }
+
+            MongoCollection<Document> collection = database.getCollection("students");
+
+            // 🔹 Update student document
+            if (imageData != null) {
+                collection.updateOne(eq("student_id", studentId), 
+                    combine(
+                        set("student_name", name),
+                        set("student_mail", email),
+                        set("college_name", college),
+                        set("department", dept),
+                        set("degree", degree),
+                        set("address", address),
+                        set("gender", gender),
+                        set("age", age),
+                        set("mobile", mobile),
+                        set("image", new Binary(imageData))
+                    ));
+            } else {
+                collection.updateOne(eq("student_id", studentId), 
+                    combine(
+                        set("student_name", name),
+                        set("student_mail", email),
+                        set("college_name", college),
+                        set("department", dept),
+                        set("degree", degree),
+                        set("address", address),
+                        set("gender", gender),
+                        set("age", age),
+                        set("mobile", mobile)
+                    ));
+            }
+
+            session.setAttribute("msg", "Profile Updated Successfully!");
+            session.setAttribute("student_name", name);
+            session.setAttribute("student_mail", email);
+            
+            response.sendRedirect("Student_Profile.jsp");
 
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (ps != null) ps.close();
-                if (con != null) con.close();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            session.setAttribute("msg", "Error: " + e.getMessage());
+            response.sendRedirect("Student_Profile.jsp");
         }
     }
 }

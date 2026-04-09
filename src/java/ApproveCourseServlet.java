@@ -1,89 +1,84 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-/**
- *
- * @author user
- */
-
-import java.io.*;
-import java.sql.*;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.set;
+import org.bson.Document;
 import javax.servlet.*;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import Database.DbConnection;
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @WebServlet("/ApproveCourseServlet")
 public class ApproveCourseServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String courseId = request.getParameter("course_id");
+        String courseIdStr = request.getParameter("course_id");
         response.setContentType("text/html");
         
+        if (courseIdStr == null || courseIdStr.isEmpty()) {
+            response.getWriter().println("ERROR: course_id missing");
+            return;
+        }
+
         try {
-            DbConnection db = new DbConnection();
-            Connection con = db.getConnection();
+            int courseId = Integer.parseInt(courseIdStr);
 
-            // ✅ Check number of topics in this course
-            String topicQuery = "SELECT COUNT(*) FROM topics WHERE course_id = ?";
-            PreparedStatement psTopic = con.prepareStatement(topicQuery);
-            psTopic.setString(1, courseId);
-            ResultSet rsTopic = psTopic.executeQuery();
-
-            int topicCount = 0;
-            if (rsTopic.next()) {
-                topicCount = rsTopic.getInt(1);
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                response.getWriter().println("ERROR: Database Connection Failed!");
+                return;
             }
 
-            // ✅ Check modules count under each topic
-            boolean hasThreeModulesEach = true;
-            if (topicCount >= 3) {
-                String moduleQuery = "SELECT topic_id FROM topics WHERE course_id = ?";
-                PreparedStatement psModules = con.prepareStatement(moduleQuery);
-                psModules.setString(1, courseId);
-                ResultSet rsModules = psModules.executeQuery();
+            MongoCollection<Document> collection = database.getCollection("courses");
 
-                while (rsModules.next()) {
-                    String topicId = rsModules.getString("topic_id");
-                    PreparedStatement psCount = con.prepareStatement(
-                        "SELECT COUNT(*) FROM modules WHERE topic_id = ?");
-                    psCount.setString(1, topicId);
-                    ResultSet rsCount = psCount.executeQuery();
-                    if (rsCount.next() && rsCount.getInt(1) < 3) {
-                        hasThreeModulesEach = false;
+            // 🔹 Fetch the course document
+            Document course = collection.find(eq("course_id", courseId)).first();
+
+            if (course == null) {
+                response.getWriter().println("<script>alert('Course not found!');window.location='Admin_Course.jsp';</script>");
+                return;
+            }
+
+            // 🔹 Get arrays from the nested document
+            List<Document> topics = course.getList("topics", Document.class);
+            List<Document> modules = course.getList("modules", Document.class);
+            List<Document> quizzes = course.getList("quizzes", Document.class);
+
+            boolean hasMinimumTopics = (topics != null && topics.size() >= 3);
+            boolean hasMinimumQuizzes = (quizzes != null && quizzes.size() >= 5);
+            boolean hasThreeModulesPerTopic = true;
+
+            if (hasMinimumTopics && modules != null) {
+                for (Document topic : topics) {
+                    final String tid = String.valueOf(topic.get("topic_id"));
+                    long count = modules.stream()
+                            .filter(m -> tid.equals(String.valueOf(m.get("topic_id"))))
+                            .count();
+                    if (count < 3) {
+                        hasThreeModulesPerTopic = false;
                         break;
                     }
                 }
             } else {
-                hasThreeModulesEach = false;
+                hasThreeModulesPerTopic = false;
             }
-boolean hasFiveQuiz = false;
-            String quizCheck = "SELECT COUNT(*) FROM topic_quiz WHERE course_id = ?";
-            PreparedStatement psQuiz = con.prepareStatement(quizCheck);
-            psQuiz.setString(1, courseId);
-            ResultSet rsQuiz = psQuiz.executeQuery();
 
-            if (rsQuiz.next() && rsQuiz.getInt(1) >= 5) {
-                hasFiveQuiz = true;
-            }
-            // ✅ Approve or reject
-            if (hasThreeModulesEach && hasFiveQuiz) {
-                PreparedStatement psApprove = con.prepareStatement(
-                    "UPDATE courses SET status='APPROVED' WHERE course_id=?");
-                psApprove.setString(1, courseId);
-                psApprove.executeUpdate();
-
+            // 🔹 Approve or reject based on requirements
+            if (hasMinimumTopics && hasThreeModulesPerTopic && hasMinimumQuizzes) {
+                collection.updateOne(eq("course_id", courseId), set("status", "APPROVED"));
                 response.getWriter().println("<script>alert('Course approved successfully!');window.location='Admin_Course.jsp';</script>");
             } else {
-                response.getWriter().println("<script>alert('Each course must have at least 3 topics and each topic must have 3 modules,and at least 5 quiz questions in course!');window.location='Admin_Course.jsp';</script>");
+                response.getWriter().println("<script>alert('Validation Failed: Each course must have at least 3 topics, each topic must have 3 modules, and at least 5 quiz questions must be added.');window.location='Admin_Course.jsp';</script>");
             }
 
         } catch (Exception e) {
             e.printStackTrace();
+            response.getWriter().println("ERROR: " + e.getMessage());
         }
     }
 }

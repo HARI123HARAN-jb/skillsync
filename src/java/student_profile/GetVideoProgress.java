@@ -1,19 +1,17 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package student_profile;
 
-
-import Database.DbConnection;
-import java.sql.*;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import org.bson.Document;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.List;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.IOException;
-import java.io.*;
-
 
 @WebServlet("/GetVideoProgress")
 public class GetVideoProgress extends HttpServlet {
@@ -23,68 +21,56 @@ public class GetVideoProgress extends HttpServlet {
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-
         PrintWriter out = response.getWriter();
 
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("student_id") == null) {
-            out.print("{\"seconds\":0,\"completed\":false}");
+            out.print("{\"status\":\"error\",\"message\":\"Not logged in\"}");
             return;
         }
 
-        String studentId = session.getAttribute("student_id").toString();
-        String moduleId  = request.getParameter("module_id");
-        String topicId   = request.getParameter("topic_id");
+        Integer studentId = (Integer) session.getAttribute("student_id");
+        String courseIdStr = request.getParameter("course_id");
+        String moduleIdStr = request.getParameter("module_id");
 
-        if (moduleId == null || topicId == null) {
-            out.print("{\"seconds\":0,\"completed\":false}");
+        if (courseIdStr == null || moduleIdStr == null) {
+            out.print("{\"status\":\"error\",\"message\":\"Missing parameters\"}");
             return;
         }
 
         try {
-            DbConnection db = new DbConnection();
+            int courseId = Integer.parseInt(courseIdStr);
+            int moduleId = Integer.parseInt(moduleIdStr);
 
-            // ✅ STEP 1: Check if already completed in student_modules
-            ResultSet rsCompleted = db.Select(
-                "SELECT video_status FROM student_modules " +
-                "WHERE student_id='" + studentId + "' " +
-                "AND modules_id='" + moduleId + "' " +
-                "AND topic_id='" + topicId + "'"
-            );
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                out.print("{\"status\":\"error\",\"message\":\"DB Connection failed\"}");
+                return;
+            }
 
-            if (rsCompleted.next()) {
-                String videoStatus = rsCompleted.getString("video_status");
-                if ("completed".equals(videoStatus)) {
-                    // ✅ Already completed — delete progress row if still exists
-                    db.update(
-                        "DELETE FROM video_progress " +
-                        "WHERE student_id='" + studentId + "' " +
-                        "AND module_id='" + moduleId + "' " +
-                        "AND topic_id='" + topicId + "'"
-                    );
-                    // Tell JS: video is done, don't show resume
-                    out.print("{\"seconds\":0,\"completed\":true}");
-                    return;
+            MongoCollection<Document> enrollments = database.getCollection("enrollments");
+
+            // 🔹 Fetch enrollment
+            Document enrollment = enrollments.find(and(eq("student_id", studentId), eq("course_id", courseId))).first();
+
+            double lastTime = 0.0;
+            if (enrollment != null) {
+                List<Document> progressList = enrollment.getList("modules_progress", Document.class);
+                if (progressList != null) {
+                    for (Document p : progressList) {
+                        if (p.getInteger("module_id") == moduleId) {
+                            lastTime = p.get( "watched_seconds", 0.0);
+                            break;
+                        }
+                    }
                 }
             }
 
-            // ✅ STEP 2: Not completed — get saved progress
-            ResultSet rs = db.Select(
-                "SELECT watched_seconds FROM video_progress " +
-                "WHERE student_id='" + studentId + "' " +
-                "AND module_id='" + moduleId + "' " +
-                "AND topic_id='" + topicId + "'"
-            );
-
-            if (rs.next()) {
-                double seconds = rs.getDouble("watched_seconds");
-                out.print("{\"seconds\":" + seconds + ",\"completed\":false}");
-            } else {
-                out.print("{\"seconds\":0,\"completed\":false}");
-            }
+            out.print("{\"status\":\"ok\",\"seconds\":" + lastTime + "}");
 
         } catch (Exception e) {
-            out.print("{\"seconds\":0,\"completed\":false}");
+            out.print("{\"status\":\"error\",\"message\":\"" + e.getMessage() + "\"}");
             e.printStackTrace();
         }
     }

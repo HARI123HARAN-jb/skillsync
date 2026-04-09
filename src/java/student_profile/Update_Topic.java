@@ -1,83 +1,85 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package student_profile;
 
-import Database.DbConnection;
-import java.io.*;
-import java.sql.*;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.UpdateOptions;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.combine;
+import static com.mongodb.client.model.Updates.set;
+import org.bson.Document;
+import org.bson.types.Binary;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.InputStream;
-import javax.servlet.annotation.MultipartConfig;
-import javax.servlet.http.Part;
 
 @WebServlet("/Update_Topic")
-@MultipartConfig(maxFileSize = 1024 * 1024 * 50)
+@MultipartConfig(maxFileSize = 10 * 1024 * 1024)
 public class Update_Topic extends HttpServlet {
-@Override
+
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession(true);
+        HttpSession session = request.getSession();
+        String courseIdStr = request.getParameter("course_id");
+        String topicIdStr = request.getParameter("topic_id");
+        String title = request.getParameter("topic_title");
 
-       
-        String courseId = request.getParameter("course_id");
-        String[] topicIds = request.getParameterValues("topic_id[]");
-        String[] titles = request.getParameterValues("topic_title[]");
+        if (courseIdStr == null || topicIdStr == null) {
+            response.getWriter().println("ERROR: Missing IDs");
+            return;
+        }
 
         try {
-            DbConnection db = new DbConnection();
-            Connection conn = db.getConnection();
+            int courseId = Integer.parseInt(courseIdStr);
+            int topicId = Integer.parseInt(topicIdStr);
 
-            for (int i = 0; i < topicIds.length; i++) {
+            Part imagePart = request.getPart("image");
+            byte[] imageData = null;
 
-    String topic_id = topicIds[i];
-    String topic = titles[i];
+            if (imagePart != null && imagePart.getSize() > 0) {
+                try (InputStream is = imagePart.getInputStream()) {
+                    imageData = new byte[(int) imagePart.getSize()];
+                    is.read(imageData);
+                }
+            }
 
-    Part filePart = request.getPart("image_" + i);
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed!");
+                response.sendRedirect("Admin_Home.jsp");
+                return;
+            }
 
-    InputStream inputStream = null;
+            MongoCollection<Document> collection = database.getCollection("courses");
 
-    if (filePart != null && filePart.getSize() > 0) {
-        inputStream = filePart.getInputStream();
-    }
+            // 🔹 Update the specific TOPIC inside the TOPICS array using Array Filters
+            if (imageData != null) {
+                collection.updateOne(eq("course_id", courseId),
+                    combine(
+                        set("topics.$[t].topic_title", title),
+                        set("topics.$[t].image", new Binary(imageData))
+                    ),
+                    new UpdateOptions().arrayFilters(Arrays.asList(eq("t.topic_id", topicId))));
+            } else {
+                collection.updateOne(eq("course_id", courseId),
+                    set("topics.$[t].topic_title", title),
+                    new UpdateOptions().arrayFilters(Arrays.asList(eq("t.topic_id", topicId))));
+            }
 
-    String sql;
-
-    if (inputStream != null) {
-        sql = "UPDATE topics SET topic_title=?, image=? WHERE topic_id=?";
-        PreparedStatement ps = conn.prepareStatement(sql);
-
-        ps.setString(1, topic);
-        ps.setBlob(2, inputStream);
-        ps.setString(3, topic_id);
-
-        ps.executeUpdate();
-        ps.close();
-
-    } else {
-        sql = "UPDATE topics SET topic_title=? WHERE topic_id=?";
-        PreparedStatement ps = conn.prepareStatement(sql);
-
-        ps.setString(1, topic);
-        ps.setString(2, topic_id);
-
-        ps.executeUpdate();
-        ps.close();
-    }
-}
-            session.setAttribute("msg", "✅ Module updated successfully!");
-            response.sendRedirect("Edit_Topic.jsp?course_id="+courseId);
-
-            conn.close();
-            db.close();
+            session.setAttribute("msg", "Topic Updated successfully!");
+            response.sendRedirect("Edit_Topic.jsp?topic_id=" + topicId + "&course_id=" + courseId);
 
         } catch (Exception e) {
             e.printStackTrace();
+            response.getWriter().println("Error: " + e.getMessage());
         }
     }
 }

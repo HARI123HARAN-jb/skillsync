@@ -1,12 +1,11 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
-
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import org.bson.Document;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -14,10 +13,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-/**
- *
- * @author admin
- */
 @WebServlet(urlPatterns = {"/Admin_Login"})
 public class Admin_Login extends HttpServlet {
 
@@ -26,28 +21,26 @@ public class Admin_Login extends HttpServlet {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
         HttpSession session = request.getSession(true);
+        
         try {
             String userName = request.getParameter("userName");
             String password = request.getParameter("password");
 
-            // 🔹 Database connection
-            Database.DbConnection db = new Database.DbConnection();
-            java.sql.Connection con = db.getConnection();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
 
-            if (con == null) {
-                session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed! Please check your MongoDB configuration.");
                 response.sendRedirect("index.jsp");
                 return;
             }
 
-            // 🔹 Query admin table
-            String query = "SELECT * FROM admin WHERE email=? AND password=?";
-            PreparedStatement ps = con.prepareStatement(query);
-            ps.setString(1, userName);
-            ps.setString(2, password);
-            ResultSet rs = ps.executeQuery();
+            MongoCollection<Document> collection = database.getCollection("admins");
 
-            if (rs.next()) {
+            // 🔹 Query admin collection
+            Document admin = collection.find(and(eq("email", userName), eq("password", password))).first();
+
+            if (admin != null) {
                 session.setAttribute("msg", "Successfully Login");
                 session.setAttribute("userName", userName);
                 session.setAttribute("password", password);

@@ -1,8 +1,11 @@
-import Database.DbConnection;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import org.bson.Document;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -19,26 +22,25 @@ public class Teacher_Login extends HttpServlet {
         HttpSession session = request.getSession(true);
 
         try {
-            DbConnection db = new DbConnection();
-            java.sql.Connection connection = db.getConnection();
-            
-            if (connection == null) {
-                session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
-                response.sendRedirect("index.jsp");
-                return;
-            }
             String email = request.getParameter("mail_id");
             String password = request.getParameter("password");
 
-           
-            String query = "SELECT * FROM teacher_register WHERE teacher_mail=? AND password=?";
-            PreparedStatement ps = connection.prepareStatement(query);
-            ps.setString(1, email);
-            ps.setString(2, password);
-            ResultSet rs = ps.executeQuery();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
 
-            if (rs.next()) {
-                String adminStatus = rs.getString("Admin_Approve");
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed! Please check your MongoDB configuration.");
+                response.sendRedirect("index.jsp");
+                return;
+            }
+
+            MongoCollection<Document> collection = database.getCollection("teachers");
+
+            // 🔹 Query teacher collection
+            Document teacher = collection.find(and(eq("teacher_mail", email), eq("password", password))).first();
+
+            if (teacher != null) {
+                String adminStatus = teacher.getString("Admin_Approve");
 
                 if ("NOT APPROVED".equalsIgnoreCase(adminStatus)) {
                     session.setAttribute("msg", "Your account is pending approval. Wait for admin approval.");
@@ -49,7 +51,7 @@ public class Teacher_Login extends HttpServlet {
                     response.sendRedirect("index.jsp");
 
                 } else if ("APPROVED".equalsIgnoreCase(adminStatus)) {
-                    int id = rs.getInt("teacher_id");
+                    int id = teacher.getInteger("teacher_id", 0);
                     session.setAttribute("msg", "Successfully Logged In!");
                     session.setAttribute("teacher_id", id);
                     session.setAttribute("teacher_mail", email);
@@ -61,7 +63,6 @@ public class Teacher_Login extends HttpServlet {
                 }
 
             } else {
-                // No matching record
                 session.setAttribute("msg", "Invalid Email or Password!");
                 response.sendRedirect("index.jsp");
             }

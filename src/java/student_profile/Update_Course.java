@@ -1,68 +1,83 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package student_profile;
 
-import Database.DbConnection;
-import java.io.*;
-import java.sql.*;
+import Database.MongoConnection;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.combine;
+import static com.mongodb.client.model.Updates.set;
+import org.bson.Document;
+import org.bson.types.Binary;
+import java.io.IOException;
+import java.io.InputStream;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import javax.servlet.annotation.MultipartConfig;
-import javax.servlet.http.Part;
 
 @WebServlet("/Update_Course")
-@MultipartConfig(maxFileSize = 1024 * 1024 * 50)
+@MultipartConfig(maxFileSize = 10 * 1024 * 1024)
 public class Update_Course extends HttpServlet {
-@Override
+
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        HttpSession session = request.getSession(true);
-        String courseId = request.getParameter("course_id");
+        
+        HttpSession session = request.getSession();
+        String courseIdStr = request.getParameter("course_id");
         String name = request.getParameter("course_name");
         String desc = request.getParameter("description");
 
+        if (courseIdStr == null || courseIdStr.isEmpty()) {
+            response.getWriter().println("ERROR: Missing course_id");
+            return;
+        }
+
         try {
-            DbConnection db = new DbConnection();
-            Connection conn = db.getConnection();
+            int courseId = Integer.parseInt(courseIdStr);
 
             Part imagePart = request.getPart("image");
+            byte[] imageData = null;
 
-            PreparedStatement ps;
-
-            // If new image uploaded
             if (imagePart != null && imagePart.getSize() > 0) {
-
-                ps = conn.prepareStatement(
-                    "UPDATE courses SET course_name=?, description=?, image=? WHERE course_id=?"
-                );
-
-                ps.setString(1, name);
-                ps.setString(2, desc);
-                ps.setBinaryStream(3, imagePart.getInputStream(), (int) imagePart.getSize());
-                ps.setString(4, courseId);
-
-            } else {
-
-                ps = conn.prepareStatement(
-                    "UPDATE courses SET course_name=?, description=? WHERE course_id=?"
-                );
-
-                ps.setString(1, name);
-                ps.setString(2, desc);
-                ps.setString(3, courseId);
+                try (InputStream is = imagePart.getInputStream()) {
+                    imageData = new byte[(int) imagePart.getSize()];
+                    is.read(imageData);
+                }
             }
 
-            ps.executeUpdate();
-            ps.close();
+            // 🍃 MongoDB Connection
+            MongoDatabase database = MongoConnection.getDatabase();
+            if (database == null) {
+                session.setAttribute("msg", "Database Connection Failed!");
+                response.sendRedirect("Admin_Course.jsp"); // Fallback
+                return;
+            }
+
+            MongoCollection<Document> collection = database.getCollection("courses");
+
+            // 🔹 Update course document
+            if (imageData != null) {
+                collection.updateOne(eq("course_id", courseId),
+                    combine(
+                        set("course_name", name),
+                        set("description", desc),
+                        set("image", new Binary(imageData))
+                    ));
+            } else {
+                collection.updateOne(eq("course_id", courseId),
+                    combine(
+                        set("course_name", name),
+                        set("description", desc)
+                    ));
+            }
+
             session.setAttribute("msg", "Course Updated successfully!");
-            response.sendRedirect("Edit_Course.jsp?course_id="+courseId);
+            response.sendRedirect("Edit_Course.jsp?course_id=" + courseId);
 
         } catch (Exception e) {
             e.printStackTrace();
+            response.getWriter().println("Error: " + e.getMessage());
         }
     }
 }
