@@ -8,7 +8,9 @@ WORKDIR /app
 COPY . .
 
 # Pass Tomcat home so NetBeans build-impl.xml is satisfied
-RUN ant -Dj2ee.server.home=/usr/local/tomcat default
+RUN ant -Dj2ee.server.home=/usr/local/tomcat \
+    -Dlibs.CopyLibs.classpath=/app/lib/org-netbeans-modules-java-j2seproject-copylibstask.jar \
+    default
 
 # Runtime Stage
 FROM tomcat:9.0-jre8-alpine
