@@ -18,7 +18,7 @@ public class DbConnection {
             String username = System.getenv("DB_USER");
             String password = System.getenv("DB_PASS");
 
-            String sslParams = "useSSL=true&requireSSL=true&verifyServerCertificate=false&allowPublicKeyRetrieval=true&connectTimeout=10000&socketTimeout=30000";
+            String sslParams = "useSSL=true&requireSSL=true&verifyServerCertificate=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useLegacyDatetimeCode=false&enabledTLSProtocols=TLSv1.2&connectTimeout=10000&socketTimeout=30000";
             
             if (url != null && !url.contains("?")) {
                 url += "?" + sslParams;
