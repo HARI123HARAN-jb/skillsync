@@ -6,7 +6,7 @@
 package student_profile;
 
 
-import Connection.DbConnection;
+import Database.DbConnection;
 import java.sql.*;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;

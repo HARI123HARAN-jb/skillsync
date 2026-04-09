@@ -9,7 +9,7 @@ import java.awt.image.BufferedImage;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import javax.imageio.ImageIO;
-import Connection.DbConnection;
+import Database.DbConnection;
 
 
 @WebServlet("/Download_Certificate")

@@ -3,7 +3,7 @@
  * and open the template in the editor.
  */
 
-import Connection.DbConnection;
+import Database.DbConnection;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -179,7 +179,7 @@ fis11 = new FileInputStream(image1);
         
        
 
-     Connection con7 = new Connection.DbConnection().getConnection();
+     con7 = new Database.DbConnection().getConnection();
   
      
 String query="Select * from teacher_register where teacher_mail='"+Mail_ID+"'";

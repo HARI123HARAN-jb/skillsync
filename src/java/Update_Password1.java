@@ -37,7 +37,7 @@ public class Update_Password1 extends HttpServlet {
         }
 
         try {
-            Connection conn = new Connection.DbConnection().getConnection();
+            Connection conn = new Database.DbConnection().getConnection();
 
             String query = "UPDATE teacher_register SET password=? WHERE teacher_mail=?";
             PreparedStatement ps = conn.prepareStatement(query);

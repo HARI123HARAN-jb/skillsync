@@ -14,7 +14,7 @@ import java.sql.*;
 import javax.servlet.*;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import Connection.DbConnection;
+import Database.DbConnection;
 
 @WebServlet("/ApproveCourseServlet")
 public class ApproveCourseServlet extends HttpServlet {

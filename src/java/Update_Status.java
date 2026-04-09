@@ -1,4 +1,4 @@
-import Connection.DbConnection;
+import Database.DbConnection;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.*;

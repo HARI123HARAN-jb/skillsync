@@ -46,7 +46,7 @@ public class Student_Register extends HttpServlet {
             }
 
             // 🔹 Database connection
-            Connection con = new Connection.DbConnection().getConnection();
+            Connection con = new Database.DbConnection().getConnection();
 
             // 🔹 Check duplicate email
             PreparedStatement check = con.prepareStatement(

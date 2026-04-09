@@ -14,7 +14,7 @@ import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.*;
-import Connection.DbConnection;
+import Database.DbConnection;
 
 @WebServlet("/MarkNotifRead")
 public class MarkNotifRead extends HttpServlet {

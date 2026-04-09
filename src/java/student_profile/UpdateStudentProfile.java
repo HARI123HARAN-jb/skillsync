@@ -16,7 +16,7 @@ import javax.servlet.http.*;
 import java.io.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import Connection.DbConnection;
+import Database.DbConnection;
 
 @WebServlet("/UpdateStudentProfile")
 public class UpdateStudentProfile extends HttpServlet {

@@ -33,7 +33,7 @@ public class Student_Send_Mail extends HttpServlet {
 
         try {
             // Connect to database
-            conn = new Connection.DbConnection().getConnection();
+            conn = new Database.DbConnection().getConnection();
 
             // Fetch teacher details
             String sql = "SELECT student_name, student_mail FROM student_register WHERE student_id = ? and Admin_Approve='APPROVED'";

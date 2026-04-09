@@ -3,7 +3,7 @@
  * and open the template in the editor.
  */
 
-//import Connection.DbConnection;
+//import Database.DbConnection;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
