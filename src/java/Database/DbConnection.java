@@ -18,10 +18,12 @@ public class DbConnection {
             String username = System.getenv("DB_USER");
             String password = System.getenv("DB_PASS");
 
+            String sslParams = "useSSL=true&requireSSL=true&verifyServerCertificate=false&allowPublicKeyRetrieval=true&connectTimeout=10000&socketTimeout=30000";
+            
             if (url != null && !url.contains("?")) {
-                url += "?useSSL=true&requireSSL=true&verifyServerCertificate=false";
+                url += "?" + sslParams;
             } else if (url != null && !url.contains("useSSL")) {
-                url += "&useSSL=true&requireSSL=true&verifyServerCertificate=false";
+                url += "&" + sslParams;
             }
             
             connection = DriverManager.getConnection(url, username, password);
