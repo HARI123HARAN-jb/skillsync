@@ -1,22 +1,25 @@
-# Build Stage — use Tomcat image so Ant can find server home
-FROM tomcat:9.0-jre8 AS build
+# Build Stage — JDK8 with Ant to compile the project
+FROM openjdk:8-jdk AS build
 
 # Install Ant
 RUN apt-get update && apt-get install -y ant && rm -rf /var/lib/apt/lists/*
 
+# Download a minimal Tomcat so Ant has a j2ee server home with servlet-api.jar
+RUN mkdir -p /tomcat/lib && \
+    curl -L "https://repo1.maven.org/maven2/javax/servlet/javax.servlet-api/3.1.0/javax.servlet-api-3.1.0.jar" \
+    -o /tomcat/lib/javax.servlet-api-3.1.0.jar
+
 WORKDIR /app
 COPY . .
 
-# Pass Tomcat home so NetBeans build-impl.xml is satisfied
-RUN ant -Dj2ee.server.home=/usr/local/tomcat \
+# Build the WAR
+RUN ant -Dj2ee.server.home=/tomcat \
     -Dlibs.CopyLibs.classpath=/app/lib/org-netbeans-modules-java-j2seproject-copylibstask.jar \
     default
 
-# Runtime Stage
+# Runtime Stage — lightweight Tomcat to serve the WAR
 FROM tomcat:9.0-jre8-alpine
-# Clear the default Tomcat app
 RUN rm -rf /usr/local/tomcat/webapps/ROOT
-# Copy compiled .war as ROOT app
 COPY --from=build /app/dist/*.war /usr/local/tomcat/webapps/ROOT.war
 
 EXPOSE 8080
