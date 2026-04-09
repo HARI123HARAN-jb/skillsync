@@ -79,12 +79,18 @@ public class Teacher_Register extends HttpServlet {
             List items = null;
             try {
                items = upload.parseRequest(request);
-            } catch (FileUploadException e) {
-                e.printStackTrace();
+            } catch (Exception e) {
+                System.err.println("❌ File Upload Failed: " + e.getMessage());
             }
+
+            if (items == null) {
+                session.setAttribute("msg", "Failed to process form data.");
+                response.sendRedirect("index.jsp");
+                return;
+            }
+
             byte[] data = null;
             String fileName = null;
-// Process the uploaded items
             Iterator iter = items.iterator();
             while (iter.hasNext()) {
                 FileItem item = (FileItem) iter.next();
@@ -151,33 +157,28 @@ public class Teacher_Register extends HttpServlet {
                     fileName = item.getName();
                 }
             }
-            saveFile = fileName;
-                    String path1 = request.getSession().getServletContext().getRealPath("/");
-              // String patt=path.replace("\\build", "");
-               
-               String strPath1 = path1+"\\"+saveFile;
-            File ff1 = new File(strPath1);
-            FileOutputStream fileOut1 = new FileOutputStream(ff1);
-            fileOut1.write(data, 0, data.length);
-            fileOut1.flush();
-            fileOut1.close();
-        out.println(saveFile);
- 
-
-FileInputStream fis11 = null;
-File image1 = null;
-//FileInputStream fis11 = null;
-File image11 = null;
+            FileInputStream fis11 = null;
+            File image1 = null;
+            int jh = 0;
+            
+            if (data != null && fileName != null && fileName != "") {
+                saveFile = fileName;
+                String path1 = request.getSession().getServletContext().getRealPath("/");
+                String strPath1 = path1 + "\\" + saveFile;
+                File ff1 = new File(strPath1);
+                FileOutputStream fileOut1 = new FileOutputStream(ff1);
+                fileOut1.write(data, 0, data.length);
+                fileOut1.flush();
+                fileOut1.close();
+                image1 = new File(strPath1);
+                fis11 = new FileInputStream(image1);
+            }
+        
 	Connection con7=null;
 	PreparedStatement st7=null;
       
        
 PreparedStatement st11=null;
-
-image1 = new File(strPath1);
-fis11 = new FileInputStream(image1);
-        
-       
 
      con7 = new Database.DbConnection().getConnection();
      
@@ -214,14 +215,14 @@ st7.setString(8,address);
 st7.setString(9,gender);
 st7.setString(10,age);
 st7.setString(11,password);
-if(fileName != "")
-        st7.setBinaryStream(12, (InputStream)fis11, (int)(image1.length()));
-else
-    st7.setBinaryStream(12, null);
+            if (fis11 != null && image1 != null) {
+                st7.setBinaryStream(12, (InputStream) fis11, (int) (image1.length()));
+            } else {
+                st7.setNull(12, java.sql.Types.BLOB);
+            }
 
       int i =st7.executeUpdate();
-      DbConnection db = new DbConnection();
-            int jh = 0;
+                jh = 0;
                 String q1 ="Select * from teacher_register where teacher_mail='" + Mail_ID + "' ";
                 ResultSet rf = st.executeQuery(q1);
                 if (rf.next()) {

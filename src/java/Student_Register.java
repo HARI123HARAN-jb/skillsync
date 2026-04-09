@@ -83,7 +83,11 @@ public class Student_Register extends HttpServlet {
             ps.setString(10, age);
             ps.setString(11, password);
             ps.setString(12,ph_no);
-            ps.setBlob(13, imageStream);
+            if (imageStream != null) {
+                ps.setBlob(13, imageStream);
+            } else {
+                ps.setNull(13, java.sql.Types.BLOB);
+            }
 
             ps.executeUpdate();
 
