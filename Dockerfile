@@ -1,5 +1,5 @@
 # Build Stage — JDK8 with Ant to compile the project
-FROM openjdk:8-jdk AS build
+FROM eclipse-temurin:8-jdk AS build
 
 # Install Ant
 RUN apt-get update && apt-get install -y ant && rm -rf /var/lib/apt/lists/*
