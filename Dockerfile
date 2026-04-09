@@ -33,7 +33,8 @@ RUN mkdir -p dist/war/WEB-INF/classes dist/war/WEB-INF/lib && \
 FROM tomcat:9.0-jre8-alpine
 
 # Disable the AJP connector (not needed on Render, causes noise)
-RUN sed -i '/Connector port="8009"/d' /usr/local/tomcat/conf/server.xml
+RUN sed -i '/Connector port="8009"/d' /usr/local/tomcat/conf/server.xml && \
+    sed -i 's/port="8005"/port="-1"/' /usr/local/tomcat/conf/server.xml
 
 # Limit JVM memory to stay within Render free tier (512MB)
 ENV CATALINA_OPTS="-Xms64m -Xmx384m -XX:MetaspaceSize=64m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC"
