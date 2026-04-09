@@ -23,6 +23,20 @@ public class DbConnection {
                 return;
             }
 
+            // 🔹 'Aiven-proof' URI Fix: Convert mysql:// to jdbc:mysql:// and strip redundant credentials
+            if (url.startsWith("mysql://")) {
+                // Remove mysql:// and any user:pass@ part
+                String cleanUrl = url.substring(8); // skip mysql://
+                if (cleanUrl.contains("@")) {
+                    cleanUrl = cleanUrl.substring(cleanUrl.lastIndexOf("@") + 1);
+                }
+                // Strip ssl-mode=REQUIRED (we'll add our own robust params below)
+                if (cleanUrl.contains("ssl-mode")) {
+                    cleanUrl = cleanUrl.split("\\?")[0];
+                }
+                url = "jdbc:mysql://" + cleanUrl;
+            }
+
             String sslParams = "useSSL=true&requireSSL=true&verifyServerCertificate=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useLegacyDatetimeCode=false&enabledTLSProtocols=TLSv1.2&connectTimeout=10000&socketTimeout=30000";
             
             if (!url.contains("?")) {
