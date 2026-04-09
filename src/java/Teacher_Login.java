@@ -19,13 +19,20 @@ public class Teacher_Login extends HttpServlet {
         HttpSession session = request.getSession(true);
 
         try {
-            DbConnection connection = new DbConnection();
+            DbConnection db = new DbConnection();
+            java.sql.Connection connection = db.getConnection();
+            
+            if (connection == null) {
+                session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
+                response.sendRedirect("index.jsp");
+                return;
+            }
             String email = request.getParameter("mail_id");
             String password = request.getParameter("password");
 
            
             String query = "SELECT * FROM teacher_register WHERE teacher_mail=? AND password=?";
-            PreparedStatement ps = connection.getConnection().prepareStatement(query);
+            PreparedStatement ps = connection.prepareStatement(query);
             ps.setString(1, email);
             ps.setString(2, password);
             ResultSet rs = ps.executeQuery();

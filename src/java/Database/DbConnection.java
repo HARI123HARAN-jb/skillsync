@@ -18,17 +18,25 @@ public class DbConnection {
             String username = System.getenv("DB_USER");
             String password = System.getenv("DB_PASS");
 
+            if (url == null || username == null || password == null) {
+                System.err.println("❌ Database Configuration Missing! URL: " + (url != null) + ", User: " + (username != null) + ", Pass: " + (password != null));
+                return;
+            }
+
             String sslParams = "useSSL=true&requireSSL=true&verifyServerCertificate=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useLegacyDatetimeCode=false&enabledTLSProtocols=TLSv1.2&connectTimeout=10000&socketTimeout=30000";
             
-            if (url != null && !url.contains("?")) {
+            if (!url.contains("?")) {
                 url += "?" + sslParams;
-            } else if (url != null && !url.contains("useSSL")) {
+            } else if (!url.contains("useSSL")) {
                 url += "&" + sslParams;
             }
             
             connection = DriverManager.getConnection(url, username, password);
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
+            System.out.println("✅ Database Connected Successfully!");
+        } catch (ClassNotFoundException e) {
+            System.err.println("❌ Database Driver Not Found: " + e.getMessage());
+        } catch (SQLException e) {
+            System.err.println("❌ Database Connection Failed: " + e.getMessage());
         }
     }
 

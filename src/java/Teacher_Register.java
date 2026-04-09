@@ -180,6 +180,12 @@ fis11 = new FileInputStream(image1);
        
 
      con7 = new Database.DbConnection().getConnection();
+     
+     if (con7 == null) {
+         session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
+         response.sendRedirect("index.jsp");
+         return;
+     }
   
      
 String query="Select * from teacher_register where teacher_mail='"+Mail_ID+"'";

@@ -47,6 +47,12 @@ public class Student_Register extends HttpServlet {
 
             // 🔹 Database connection
             Connection con = new Database.DbConnection().getConnection();
+            
+            if (con == null) {
+                session.setAttribute("msg", "Database Connection Failed! Please check your Render Environment Variables.");
+                response.sendRedirect("index.jsp");
+                return;
+            }
 
             // 🔹 Check duplicate email
             PreparedStatement check = con.prepareStatement(
